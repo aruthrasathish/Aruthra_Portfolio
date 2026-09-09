@@ -1,4 +1,4 @@
-# Aruthra's Portfolio
+# 💁🏻‍♀️Aruthra's Portfolio
 
 A personal portfolio website built with [Next.js](https://nextjs.org), showcasing
 my projects, skills, and experience.
@@ -72,7 +72,7 @@ menu all read from the same list in `components/Navbar.js`:
 ## Content
 
 `lib/data.js` is the single source of truth for every piece of content. Nothing
-in the components hardcodes copy, metrics or asset paths — changing a metric,
+in the components hardcodes copy, metrics or asset paths - changing a metric,
 adding a project, or reordering skills is a data edit, not a component edit.
 
 ## Images
