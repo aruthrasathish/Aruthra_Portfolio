@@ -1,112 +1,66 @@
 "use client";
-import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
+
 import Image from "next/image";
+import { ArrowUpRight } from "lucide-react";
+import Reveal, { SectionHeading } from "@/components/ui/Reveal";
+import { certifications } from "@/lib/data";
 
-const certifications = [
-  {
-    id: "aws-data-eng",
-    title: "AWS Academy - Data Engineering",
-    provider: "Amazon Web Services (AWS Academy)",
-    level: "TRAINED",
-    type: "Training Program",
-    date: "December 2024",
-    description:
-      "Verified training in data pipelines, ETL workflows, distributed data processing, and cloud-native data engineering patterns.",
-    skills: ["AWS Cloud", "Data Engineering", "Data Pipelines", "ETL"],
-    badgeImage: "/images/certifications/aws-data-engineering.png",
-    verifyUrl:
-      "https://www.credly.com/badges/7065b005-0db8-4d54-a9db-3624b5726dd5/public_url",
-  },
-  {
-    id: "azure-fundamentals",
-    title: "Microsoft Certified - Azure Fundamentals (AZ-900)",
-    provider: "Microsoft",
-    level: "FUNDAMENTALS",
-    type: "Certification",
-    date: "February 2025",
-    description:
-      "Demonstrates understanding of cloud architecture, security, compute, storage, networking, governance, and cost modeling.",
-    skills: ["Azure", "Cloud Fundamentals", "Security", "Networking"],
-    badgeImage: "/images/certifications/microsoft-certified-fundamentals-badge.svg",
-    verifyUrl:
-      "https://learn.microsoft.com/en-us/users/aruthras-1156/credentials/e421509f05843a92?ref=https%3A%2F%2Fwww.linkedin.com%2F",
-  },
-];
-
+/**
+ * Supporting evidence, not the main story: these cards stay lighter than the
+ * experience, project and award cards above them.
+ *
+ * With only two credentials, a full-width grid stranded them on the left. The
+ * pair is capped and centred instead, so it reads as a deliberate set rather
+ * than as the first two cells of an unfinished row.
+ */
 export default function Certifications() {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-
   return (
-    <section id="certifications" ref={ref} className="section">
+    <section id="certifications" className="section pt-0 md:pt-0">
       <div className="container-main">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.5 }}
-          className="mb-12"
-        >
-          <p className="section-label">Certifications</p>
-          <h2 className="section-title">Cloud Credentials</h2>
-          <p className="section-subtitle max-w-2xl">
-            Cloud and data certifications that strengthen my backend and AI/ML engineering work.
-          </p>
-        </motion.div>
+        <SectionHeading
+          label="Credentials"
+          title="Certifications"
+        />
 
-        {/* Certifications Grid */}
-        <div className="grid md:grid-cols-2 gap-5">
+        <div className="grid sm:grid-cols-2 gap-5 md:gap-6 max-w-3xl lg:max-w-4xl mx-auto">
           {certifications.map((cert, index) => (
-            <motion.div
-              key={cert.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-            >
+            <Reveal key={cert.id} delay={index * 0.08} className="h-full">
               <a
                 href={cert.verifyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={`View ${cert.title} credential`}
-                className="card p-6 h-full flex flex-col cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-                style={{
-                  display: "flex",
-                }}
+                aria-label={`Verify ${cert.title} credential (opens in a new tab)`}
+                className="card accent-card p-6 md:p-7 h-full flex flex-col group"
+                style={{ "--proj-accent": "var(--accent)" }}
               >
-                {/* Top: Badge + Info */}
-                <div className="flex gap-5">
-                  {/* Badge Image */}
+                <div className="flex gap-4 items-start">
                   <div
-                    className="flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden flex items-center justify-center"
-                    style={{ background: "var(--bg-surface)" }}
+                    className="flex-shrink-0 w-16 h-16 md:w-[72px] md:h-[72px] rounded-xl overflow-hidden flex items-center justify-center"
+                    style={{
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border-default)",
+                    }}
                   >
                     <Image
                       src={cert.badgeImage}
-                      alt={`${cert.title} badge`}
-                      width={80}
-                      height={80}
-                      className="w-full h-full object-contain"
+                      alt=""
+                      width={72}
+                      height={72}
+                      className="w-full h-full object-contain p-1.5"
                     />
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <h3
-                      className="font-semibold text-base leading-tight mb-1"
+                      className="font-semibold text-base md:text-[17px] leading-snug"
                       style={{ color: "var(--text-primary)" }}
                     >
                       {cert.title}
                     </h3>
-                    <p
-                      className="text-sm mb-1"
-                      style={{ color: "var(--accent-light)" }}
-                    >
-                      {cert.provider}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
+
+                    <div className="flex flex-wrap items-center gap-2 mt-2.5">
                       <span
-                        className="text-xs px-2 py-0.5 rounded"
+                        className="text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded"
                         style={{
                           background: "var(--accent-dim)",
                           color: "var(--accent-lighter)",
@@ -118,54 +72,29 @@ export default function Certifications() {
                         className="text-xs"
                         style={{ color: "var(--text-muted)" }}
                       >
-                        {cert.date}
+                        {cert.provider} · {cert.date}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Description */}
-                <p
-                  className="text-sm mt-4 leading-relaxed"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {cert.description}
-                </p>
-
-                {/* Skills */}
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {cert.skills.map((skill, i) => (
-                    <span key={i} className="chip-outline">
+                <div className="flex flex-wrap gap-2 mt-5">
+                  {cert.skills.map((skill) => (
+                    <span key={skill} className="tech-chip">
                       {skill}
                     </span>
                   ))}
                 </div>
 
-                {/* View Credential Indicator */}
-                <div className="mt-auto pt-5 flex items-center gap-2">
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: "var(--accent-light)" }}
-                  >
-                    View credential
-                  </span>
-                  <svg
-                    className="w-4 h-4 transition-transform group-hover:translate-x-1"
-                    style={{ color: "var(--accent-light)" }}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                    />
-                  </svg>
-                </div>
+                <span
+                  className="mt-auto pt-6 inline-flex items-center gap-1.5 text-sm font-medium"
+                  style={{ color: "var(--accent-light)" }}
+                >
+                  Verify credential
+                  <ArrowUpRight className="w-4 h-4 cta-arrow" aria-hidden="true" />
+                </span>
               </a>
-            </motion.div>
+            </Reveal>
           ))}
         </div>
       </div>

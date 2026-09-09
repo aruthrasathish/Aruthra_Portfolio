@@ -1,126 +1,328 @@
 "use client";
-import { contact } from "@/lib/data";
-import { motion, useInView } from "framer-motion";
+
 import { useRef, useState } from "react";
+import { Check, MapPin, Loader2, AlertCircle } from "lucide-react";
+import Reveal, { SectionHeading } from "@/components/ui/Reveal";
+import { GitHubIcon, LinkedInIcon, MailIcon } from "@/components/ui/Icons";
+import { contact } from "@/lib/data";
 
-export default function Contact() {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-  const [copied, setCopied] = useState(false);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  const copyEmail = () => {
-    navigator.clipboard.writeText(contact.email);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+const FIELDS = [
+  { name: "name", label: "Your Name", type: "text", autoComplete: "name" },
+  { name: "email", label: "Your Email", type: "email", autoComplete: "email" },
+  { name: "message", label: "Your Message", type: "textarea" },
+];
 
-  const contactCards = [
+/** Client-side mirror of the server's rules - fast feedback, not the real gate. */
+function validate(values) {
+  const errors = {};
+  if (!values.name.trim()) errors.name = "Please enter your name.";
+  if (!values.email.trim()) errors.email = "Please enter your email.";
+  else if (!EMAIL_RE.test(values.email.trim()))
+    errors.email = "That email address looks incomplete.";
+  if (!values.message.trim()) errors.message = "Please enter a message.";
+  return errors;
+}
+
+const EMPTY = { name: "", email: "", message: "" };
+
+/** Left column: the direct routes. Email and location are not links out. */
+function ContactChannels() {
+  const rows = [
     {
       label: "Email",
       value: contact.email,
-      action: copyEmail,
-      actionLabel: copied ? "Copied!" : "Click to copy",
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      ),
-    },
-    {
-      label: "GitHub",
-      value: "Aruthrasathishkumar",
-      href: contact.github,
-      actionLabel: "View profile",
-      icon: (
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-          <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
-        </svg>
-      ),
+      href: `mailto:${contact.email}`,
+      icon: <MailIcon className="w-[18px] h-[18px]" />,
     },
     {
       label: "LinkedIn",
-      value: "Connect with me",
+      value: "aruthrasathish",
       href: contact.linkedin,
-      actionLabel: "View profile",
-      icon: (
-        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M20.5 2h-17A1.5 1.5 0 002 3.5v17A1.5 1.5 0 003.5 22h17a1.5 1.5 0 001.5-1.5v-17A1.5 1.5 0 0020.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 118.3 6.5a1.78 1.78 0 01-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0013 14.19a.66.66 0 000 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 012.7-1.4c1.55 0 3.36.86 3.36 3.66z" />
-        </svg>
-      ),
+      external: true,
+      icon: <LinkedInIcon className="w-[18px] h-[18px]" />,
+    },
+    {
+      label: "GitHub",
+      value: "aruthrasathish",
+      href: contact.github,
+      external: true,
+      icon: <GitHubIcon className="w-[18px] h-[18px]" />,
+    },
+    {
+      label: "Location",
+      value: contact.location,
+      icon: <MapPin className="w-[18px] h-[18px]" />,
     },
   ];
 
   return (
-    <section id="contact" ref={ref} className="section">
-      <div className="container-main">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-12"
-        >
-          <p className="section-label">Contact</p>
-          <h2 className="section-title">Get in Touch</h2>
-          <p className="section-subtitle max-w-lg mx-auto">
-            Best way to reach me for opportunities or collaborations.
-          </p>
-        </motion.div>
-
-        {/* Contact Cards Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
-          {contactCards.map((card, index) => {
-            const CardWrapper = card.href ? 'a' : 'button';
-            const cardProps = card.href
-              ? { href: card.href, target: "_blank", rel: "noopener noreferrer" }
-              : { onClick: card.action };
-
-            return (
-              <motion.div
-                key={card.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={isInView ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
+    <ul className="space-y-3">
+      {rows.map((row) => {
+        const body = (
+          <>
+            <span
+              className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl"
+              style={{
+                background: "var(--accent-dim)",
+                color: "var(--accent-light)",
+              }}
+            >
+              {row.icon}
+            </span>
+            <span className="min-w-0">
+              <span
+                className="block text-[11px] font-semibold uppercase tracking-wider"
+                style={{ color: "var(--text-muted)" }}
               >
-                <CardWrapper
-                  {...cardProps}
-                  className="card p-5 flex flex-col items-center text-center w-full group cursor-pointer"
+                {row.label}
+              </span>
+              <span
+                className="block text-sm mt-0.5 truncate"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {row.value}
+              </span>
+            </span>
+          </>
+        );
+
+        return (
+          <li key={row.label}>
+            {row.href ? (
+              <a
+                href={row.href}
+                {...(row.external
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
+                className="card accent-card p-3.5 flex items-center gap-3.5 w-full"
+                style={{ "--proj-accent": "var(--accent)" }}
+              >
+                {body}
+              </a>
+            ) : (
+              <div
+                className="card p-3.5 flex items-center gap-3.5 w-full"
+                style={{ "--proj-accent": "var(--accent)" }}
+              >
+                {body}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export default function Contact() {
+  const [values, setValues] = useState(EMPTY);
+  const [errors, setErrors] = useState({});
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const [notice, setNotice] = useState("");
+  const formRef = useRef(null);
+
+  const update = (field) => (event) => {
+    setValues((current) => ({ ...current, [field]: event.target.value }));
+    // Clear a field's error as soon as the visitor starts fixing it.
+    setErrors((current) =>
+      current[field] ? { ...current, [field]: undefined } : current
+    );
+  };
+
+  const onSubmit = async (event) => {
+    event.preventDefault();
+    if (status === "sending") return;
+
+    const found = validate(values);
+    if (Object.keys(found).length > 0) {
+      setErrors(found);
+      setStatus("idle");
+      setNotice("");
+      // Move focus to the first problem so keyboard and screen reader users
+      // land on it rather than hunting for the red text.
+      formRef.current?.querySelector(`[name="${Object.keys(found)[0]}"]`)?.focus();
+      return;
+    }
+
+    setStatus("sending");
+    setErrors({});
+    setNotice("");
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.ok) {
+        setStatus("sent");
+        setValues(EMPTY);
+        return;
+      }
+
+      if (data.errors) {
+        setErrors(data.errors);
+        setStatus("idle");
+        return;
+      }
+
+      setStatus("error");
+      setNotice(
+        data.configured === false
+          ? `The form is not wired to a mail service yet - please email ${contact.email} directly.`
+          : `Something went wrong sending that. You can email ${contact.email} instead.`
+      );
+    } catch {
+      setStatus("error");
+      setNotice(
+        `Could not reach the server. You can email ${contact.email} instead.`
+      );
+    }
+  };
+
+  return (
+    <section id="contact" className="section">
+      <div className="container-main">
+        <SectionHeading label="Contact" title="Get in Touch" subtitle={contact.cta} />
+
+        <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          <Reveal className="lg:col-span-5">
+            <ContactChannels />
+          </Reveal>
+
+          <Reveal delay={0.08} className="lg:col-span-7">
+            <div className="card p-5 md:p-6">
+              {status === "sent" ? (
+                <div
+                  className="flex flex-col items-center text-center py-8"
+                  role="status"
                 >
-                  {/* Icon */}
-                  <div
-                    className="p-3 rounded-xl mb-4 transition-all duration-300 group-hover:scale-110"
-                    style={{ background: 'var(--accent-dim)', color: 'var(--accent-light)' }}
+                  <span
+                    className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-4"
+                    style={{
+                      background: "var(--success-dim)",
+                      color: "var(--success)",
+                    }}
                   >
-                    {card.icon}
+                    <Check className="w-6 h-6" aria-hidden="true" />
+                  </span>
+                  <p
+                    className="font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Message sent
+                  </p>
+                  <p
+                    className="text-sm mt-1.5 max-w-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Thanks for reaching out - I&apos;ll get back to you soon.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setStatus("idle")}
+                    className="btn-secondary text-sm py-2 mt-5"
+                  >
+                    Send another
+                  </button>
+                </div>
+              ) : (
+                <form ref={formRef} onSubmit={onSubmit} noValidate>
+                  <p
+                    className="text-sm font-semibold mb-4"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Send a Message
+                  </p>
+
+                  <div className="space-y-4">
+                    {FIELDS.map((field) => {
+                      const error = errors[field.name];
+                      const errorId = `${field.name}-error`;
+                      const shared = {
+                        id: field.name,
+                        name: field.name,
+                        value: values[field.name],
+                        onChange: update(field.name),
+                        "aria-invalid": error ? true : undefined,
+                        "aria-describedby": error ? errorId : undefined,
+                        className: "form-input",
+                        style: error
+                          ? { borderColor: "var(--danger, #f87171)" }
+                          : undefined,
+                      };
+
+                      return (
+                        <div key={field.name}>
+                          <label htmlFor={field.name} className="form-label">
+                            {field.label}
+                          </label>
+
+                          {field.type === "textarea" ? (
+                            <textarea {...shared} rows={5} />
+                          ) : (
+                            <input
+                              {...shared}
+                              type={field.type}
+                              autoComplete={field.autoComplete}
+                            />
+                          )}
+
+                          {error ? (
+                            <p id={errorId} className="form-error">
+                              <AlertCircle
+                                className="w-3.5 h-3.5 flex-shrink-0"
+                                aria-hidden="true"
+                              />
+                              {error}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* Label */}
-                  <p
-                    className="text-sm font-semibold mb-1"
-                    style={{ color: 'var(--text-primary)' }}
+                  <button
+                    type="submit"
+                    disabled={status === "sending"}
+                    className="btn-primary w-full sm:w-auto mt-5 disabled:opacity-70"
                   >
-                    {card.label}
-                  </p>
+                    {status === "sending" ? (
+                      <>
+                        <Loader2
+                          className="w-4 h-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                        Sending
+                      </>
+                    ) : (
+                      "Send Message"
+                    )}
+                  </button>
 
-                  {/* Value */}
-                  <p
-                    className="text-xs mb-2 truncate max-w-full"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {card.value}
-                  </p>
-
-                  {/* Action Label */}
-                  <p
-                    className="text-xs font-medium transition-colors"
-                    style={{ color: card.label === "Email" && copied ? 'var(--success)' : 'var(--accent-light)' }}
-                  >
-                    {card.actionLabel}
-                  </p>
-                </CardWrapper>
-              </motion.div>
-            );
-          })}
+                  {/* Delivery problems are announced, never silently swallowed. */}
+                  {status === "error" && notice ? (
+                    <p
+                      className="flex items-start gap-2 text-sm mt-4"
+                      style={{ color: "var(--text-secondary)" }}
+                      role="alert"
+                    >
+                      <AlertCircle
+                        className="w-4 h-4 flex-shrink-0 mt-0.5"
+                        style={{ color: "var(--danger, #f87171)" }}
+                        aria-hidden="true"
+                      />
+                      <span>{notice}</span>
+                    </p>
+                  ) : null}
+                </form>
+              )}
+            </div>
+          </Reveal>
         </div>
       </div>
     </section>

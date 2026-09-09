@@ -19,23 +19,74 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
 
 # debug
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files - real secrets never committed; the value-less template is
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+!.env.example
 
 # vercel
 .vercel
+.vercel/
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editors
+.vscode/
+.idea/
+
+# python asset-pipeline byproducts (scripts/*.py)
+__pycache__/
+*.pyc
+
+# backup / scratch files
+*.bak
+*.tmp
+*.old
+*.orig
+*.rej
+
+# ---------------------------------------------------------------------------
+# Avatar pipeline artifacts.
+#
+# public/avatar/ holds both shipped assets and the intermediates that produced
+# them. Only the files the site actually loads belong in the repository; the
+# frame directories alone are ~68 MB.
+#
+# Shipped (tracked): aruthra-avatar-final.webp,
+#                    aruthra-avatar-final-noblend.webp,
+#                    aruthra-avatar-static.webp, README.md
+# ---------------------------------------------------------------------------
+/public/avatar/frames-input/
+/public/avatar/frames-alpha/
+/public/avatar/alpha-test.png
+/public/avatar/original-test.png
+/public/avatar/rembg-test.png
+/public/avatar/aruthra-avatar-alpha.webm
+/public/avatar/aruthra-avatar-transparent.webp
+/public/avatar/aruthra-avatar.json
+
+# Local source masters. Kept on disk, not published: neither is loaded by the
+# site and together they add ~4 MB. Remove these two lines to publish them.
+/public/avatar/Aruthra avatar.png
+/public/avatar/aruthra-pixverse.mp4

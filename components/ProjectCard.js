@@ -1,166 +1,135 @@
 "use client";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
+import { ArrowUpRight } from "lucide-react";
+import ProjectImage from "@/components/ProjectImage";
+import { GitHubIcon } from "@/components/ui/Icons";
+
+// Accents stay inside the existing indigo/violet/cyan/emerald identity.
+const ACCENTS = {
+  violet: "#a855f7",
+  cyan: "#38bdf8",
+  emerald: "#34d399",
+  indigo: "#818cf8",
+};
+
+const accentOf = (project) => ACCENTS[project.accent] || ACCENTS.indigo;
+
+/**
+ * Project card.
+ *
+ * One card shape for every project now, in a denser grid - the old split
+ * between a large "featured" card and a small "also built" card meant two
+ * layouts, two paddings and a lot of vertical space for seven projects.
+ *
+ * Fixed reading order, so a column of cards scans straight down:
+ *   image -> category + tech -> title -> one line -> flow -> metrics -> links
+ *
+ * The architecture is kept, but as a compact arrow chain built from the same
+ * `flow` data the old expandable diagram used. It costs two lines instead of a
+ * collapsible panel, and it is readable without a click.
+ */
 export default function ProjectCard({ project }) {
-  const [showDetails, setShowDetails] = useState(false);
+  const accent = accentOf(project);
+  // The flow labels alone carry the shape of the system; the per-stage `meta`
+  // is the detail that made the old panel tall, so it is dropped here.
+  const chain = (project.flow || []).map((stage) => stage.label);
 
   return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      transition={{ duration: 0.2 }}
-      className="card p-6 md:p-7"
+    <article
+      className="card accent-card project-card overflow-hidden h-full flex flex-col"
+      style={{ "--proj-accent": accent }}
     >
-      <div className="grid md:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="md:col-span-2 space-y-4">
-          {/* Title */}
-          <div>
-            <h3
-              className="font-semibold text-xl mb-1"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              {project.title}
-            </h3>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              {project.subtitle}
-            </p>
-          </div>
+      <ProjectImage project={project} />
 
-          {/* Description */}
-          <p
-            className="text-sm leading-relaxed"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            {project.description}
-          </p>
+      <div className="p-4 md:p-[18px] flex flex-col flex-1">
+        <span className="project-card__category" style={{ color: accent }}>
+          <span className="project-card__badge-dot" aria-hidden="true" />
+          {project.category}
+        </span>
 
-          {/* Tech Stack */}
-          <div className="flex flex-wrap gap-2">
-            {project.tech.map((tech, i) => (
-              <span key={i} className="chip-outline">
-                {tech}
-              </span>
-            ))}
-          </div>
-
-          {/* Architecture Toggle */}
-          {project.architecture && (
-            <div className="pt-1">
-              <button
-                onClick={() => setShowDetails(!showDetails)}
-                className="flex items-center gap-2 text-sm font-medium transition-all duration-200"
-                style={{ color: 'var(--accent-light)' }}
-              >
-                <motion.svg
-                  animate={{ rotate: showDetails ? 180 : 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </motion.svg>
-                {showDetails ? "Hide" : "Show"} Architecture
-              </button>
-
-              <AnimatePresence>
-                {showDetails && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div
-                      className="mt-3 p-4 rounded-xl"
-                      style={{
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-default)',
-                      }}
-                    >
-                      <p
-                        className="text-sm font-mono leading-relaxed"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        {project.architecture}
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {project.tech.slice(0, 4).map((tech) => (
+            <span key={tech} className="tech-chip">
+              {tech}
+            </span>
+          ))}
+          {project.tech.length > 4 ? (
+            <span className="tech-chip" style={{ opacity: 0.75 }}>
+              +{project.tech.length - 4}
+            </span>
+          ) : null}
         </div>
 
-        {/* Impact & Link */}
-        <div className="space-y-5">
-          {/* Impact */}
-          <div>
-            <h4
-              className="text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <svg
-                className="w-4 h-4"
-                style={{ color: 'var(--accent)' }}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-              Impact
-            </h4>
-            <ul className="space-y-2">
-              {project.impact.map((item, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2 text-sm"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  <span
-                    className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ background: 'var(--success)' }}
-                  />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        <h3
+          className="font-semibold text-[15px] leading-snug mt-3"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {project.title}
+        </h3>
 
-          {/* Links */}
-          <div className="flex flex-col gap-2">
-            {project.demo && (
-              <a
-                href={project.demo}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-primary text-sm w-full justify-center"
+        {/* Exactly one line. The longer problem/description text lives in data. */}
+        <p
+          className="text-[13px] mt-1.5 leading-relaxed"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          {project.summary}
+        </p>
+
+        {chain.length > 0 ? (
+          <p className="project-card__flow" title={project.architecture}>
+            {chain.join(" → ")}
+          </p>
+        ) : null}
+
+        <div
+          className="grid grid-cols-3 gap-2 mt-3 pt-3"
+          style={{ borderTop: "1px solid var(--border-default)" }}
+        >
+          {project.metrics.slice(0, 3).map((metric) => (
+            <div key={metric.label} className="min-w-0">
+              <p
+                className="text-[15px] font-semibold leading-none tabular-nums"
+                style={{ color: accent }}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                View Demo
-              </a>
-            )}
+                {metric.value}
+              </p>
+              <p
+                className="text-[10.5px] mt-1 leading-tight"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {metric.label}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-auto pt-3">
+          <a
+            href={project.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium"
+            style={{ color: "var(--accent-light)" }}
+          >
+            <GitHubIcon className="w-3.5 h-3.5" />
+            Code
+            <ArrowUpRight className="w-3.5 h-3.5 cta-arrow" aria-hidden="true" />
+          </a>
+
+          {project.demo ? (
             <a
-              href={project.github}
+              href={project.demo}
               target="_blank"
               rel="noopener noreferrer"
-              className={`${project.demo ? 'btn-secondary' : 'btn-primary'} text-sm w-full justify-center`}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium"
+              style={{ color: "var(--text-muted)" }}
             >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
-              </svg>
-              View Code
+              Live demo
+              <ArrowUpRight className="w-3.5 h-3.5 cta-arrow" aria-hidden="true" />
             </a>
-          </div>
+          ) : null}
         </div>
       </div>
-    </motion.div>
+    </article>
   );
 }

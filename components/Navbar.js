@@ -1,27 +1,38 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, ChevronDown, Menu, X } from "lucide-react";
 import { useMounted } from "@/hooks/useMounted";
 
-const NAV_LINKS = [
+// Every section, in the order it appears on the page. This list drives the
+// scroll spy, the mobile sheet, and the "More" group below.
+const SECTIONS = [
   { id: "home", label: "Overview" },
+  { id: "about", label: "About" },
+  { id: "education", label: "Education" },
+  { id: "experience", label: "Experience" },
   { id: "skills", label: "Skills" },
   { id: "projects", label: "Projects" },
+  { id: "awards", label: "Awards" },
   { id: "certifications", label: "Certifications" },
-  { id: "experience", label: "Experience" },
-  { id: "education", label: "Education" },
   { id: "contact", label: "Contact" },
 ];
 
-const MOBILE_NAV_LINKS = [
-  { id: "home", label: "Overview" },
-  { id: "projects", label: "Projects" },
-  { id: "contact", label: "Contact" },
-];
+// Nine top-level labels do not fit cleanly at 1024px, so the secondary four
+// collapse into a "More" menu. Every section stays one click away.
+const PRIMARY_IDS = ["home", "about", "experience", "projects", "contact"];
+const MORE_IDS = ["education", "skills", "awards", "certifications"];
 
-// Stable underline styles - must be identical on server and client to prevent hydration mismatch
+const byId = (id) => SECTIONS.find((section) => section.id === id);
+const PRIMARY = PRIMARY_IDS.map(byId);
+const MORE = MORE_IDS.map(byId);
+
+// Shown below lg, where the full bar would wrap.
+const COMPACT_IDS = ["projects", "contact"];
+const COMPACT = COMPACT_IDS.map(byId);
+
 const NAV_UNDERLINE_STYLE = {
   background: "linear-gradient(90deg, #6366F1, #8B5CF6, #EC4899)",
   boxShadow: "0 0 8px rgba(99,102,241,0.5)",
@@ -30,218 +41,307 @@ const NAV_UNDERLINE_STYLE = {
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const moreRef = useRef(null);
   const mounted = useMounted();
   const { setTheme, resolvedTheme } = useTheme();
 
-  // Handle scroll for navbar background glass effect
   useEffect(() => {
+    let frame = 0;
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-
-      // Set "home" as active when at the top of the page
-      if (window.scrollY < 100) {
-        setActiveSection("home");
-      }
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        setIsScrolled(window.scrollY > 20);
+        if (window.scrollY < 100) setActiveSection("home");
+      });
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      cancelAnimationFrame(frame);
+    };
   }, []);
 
-  // IntersectionObserver for active section detection based on scroll position
   useEffect(() => {
-    const sections = NAV_LINKS.filter(link => link.id !== "home")
-      .map(link => document.getElementById(link.id));
-
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.id);
-          }
+          if (entry.isIntersecting) setActiveSection(entry.target.id);
         });
       },
-      { threshold: 0.3, rootMargin: "-100px 0px -50% 0px" }
+      { threshold: 0.25, rootMargin: "-100px 0px -50% 0px" }
     );
 
-    sections.forEach((section) => {
+    SECTIONS.forEach(({ id }) => {
+      if (id === "home") return;
+      const section = document.getElementById(id);
       if (section) observer.observe(section);
     });
 
     return () => observer.disconnect();
   }, []);
 
-  const handleNavClick = (id) => {
+  // Close the "More" popover on outside click or Escape.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onPointerDown = (event) => {
+      if (!moreRef.current?.contains(event.target)) setMoreOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setMoreOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [moreOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [menuOpen]);
+
+  const handleNavClick = useCallback((id) => {
     setActiveSection(id);
+    setMoreOpen(false);
+    setMenuOpen(false);
     if (id === "home") {
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } else {
-      const element = document.getElementById(id);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth" });
-      }
+      return;
     }
-  };
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
-  const toggleTheme = () => {
-    setTheme(resolvedTheme === "dark" ? "light" : "dark");
-  };
-
-  // Use mounted check to ensure isDark is consistent between server and client
+  const toggleTheme = () => setTheme(resolvedTheme === "dark" ? "light" : "dark");
   const isDark = mounted ? resolvedTheme === "dark" : true;
+  const moreIsActive = MORE_IDS.includes(activeSection);
+
+  const renderLink = (link, layoutId) => {
+    const isActive = activeSection === link.id;
+    return (
+      <button
+        key={link.id}
+        onClick={() => handleNavClick(link.id)}
+        className="relative px-1 py-2"
+        aria-current={isActive ? "true" : undefined}
+      >
+        <span
+          className="text-sm transition-colors duration-150"
+          style={{
+            color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+            fontWeight: isActive ? 500 : 400,
+          }}
+        >
+          {link.label}
+        </span>
+        {isActive && (
+          <motion.span
+            layoutId={layoutId}
+            className="absolute left-0 right-0 -bottom-0.5 h-[2px] rounded-full"
+            style={NAV_UNDERLINE_STYLE}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            aria-hidden="true"
+          />
+        )}
+      </button>
+    );
+  };
+
+  const themeButton = (size) => (
+    <button
+      onClick={toggleTheme}
+      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      className={`inline-flex items-center justify-center rounded-full transition-all duration-200 hover:scale-105 ${
+        size === "sm" ? "h-8 w-8" : "h-9 w-9"
+      }`}
+      style={{
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border-default)",
+      }}
+    >
+      {isDark ? (
+        <Sun className="h-4 w-4" style={{ color: "var(--text-secondary)" }} />
+      ) : (
+        <Moon className="h-4 w-4" style={{ color: "var(--text-secondary)" }} />
+      )}
+    </button>
+  );
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 w-full z-50 transition-all duration-300`}
+      className="fixed top-0 left-0 right-0 w-full z-50 transition-all duration-300"
       style={{
-        background: isScrolled ? 'var(--nav-bg)' : 'transparent',
-        backdropFilter: isScrolled ? 'blur(20px)' : 'none',
-        WebkitBackdropFilter: isScrolled ? 'blur(20px)' : 'none',
-        borderBottom: isScrolled ? '1px solid var(--nav-border)' : '1px solid transparent',
-        boxShadow: isScrolled ? 'var(--nav-shadow)' : 'none',
+        background: isScrolled || menuOpen ? "var(--nav-bg)" : "transparent",
+        backdropFilter: isScrolled || menuOpen ? "blur(20px)" : "none",
+        WebkitBackdropFilter: isScrolled || menuOpen ? "blur(20px)" : "none",
+        borderBottom:
+          isScrolled || menuOpen
+            ? "1px solid var(--nav-border)"
+            : "1px solid transparent",
+        boxShadow: isScrolled || menuOpen ? "var(--nav-shadow)" : "none",
       }}
     >
-      {/* Inner container for content alignment */}
-      <nav className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-        {/* Brand Block */}
+      <nav
+        className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4"
+        aria-label="Primary"
+      >
         <a
           href="#home"
-          onClick={(e) => {
-            e.preventDefault();
+          onClick={(event) => {
+            event.preventDefault();
             handleNavClick("home");
           }}
-          className="flex flex-col leading-tight transition-opacity hover:opacity-80"
+          className="flex items-center transition-opacity hover:opacity-80 min-w-0"
         >
           <span
-            className="text-base md:text-lg font-semibold tracking-tight"
-            style={{ color: 'var(--text-primary)' }}
+            className="text-base lg:text-lg font-semibold tracking-tight truncate"
+            style={{ color: "var(--text-primary)" }}
           >
-            Aruthra Sathish Kumar
-          </span>
-          <span
-            className="text-[10px] md:text-xs tracking-wide"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            Software &amp; AI Engineering
+            Aruthra&apos;s Portfolio
           </span>
         </a>
 
-        {/* Nav Links - Desktop */}
-        <div className="hidden md:flex items-center gap-6">
-          {NAV_LINKS.map((link) => {
-            const isActive = activeSection === link.id;
-            return (
-              <button
-                key={link.id}
-                onClick={() => handleNavClick(link.id)}
-                className="relative px-1 py-2"
-              >
-                {/* Link text */}
-                <span
-                  className="text-sm transition-colors duration-150"
-                  style={{
-                    color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    fontWeight: isActive ? 500 : 400,
-                  }}
-                >
-                  {link.label}
-                </span>
+        {/* Full nav from lg up. */}
+        <div className="hidden lg:flex items-center gap-5">
+          {PRIMARY.slice(0, 4).map((link) => renderLink(link, "nav-underline"))}
 
-                {/* Shared layout underline - indigo/violet/pink gradient */}
-                {isActive && (
-                  <motion.span
-                    layoutId="nav-underline"
-                    className="absolute left-0 right-0 -bottom-0.5 h-[2px] rounded-full"
-                    style={NAV_UNDERLINE_STYLE}
-                    transition={{
-                      type: "spring",
-                      stiffness: 400,
-                      damping: 30,
-                    }}
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            );
-          })}
-
-          {/* Theme Toggle Button - Desktop */}
-          {mounted && (
+          <div className="relative" ref={moreRef}>
             <button
-              onClick={toggleTheme}
-              aria-label="Toggle theme"
-              className="ml-2 inline-flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 hover:scale-105"
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-default)',
-              }}
+              type="button"
+              onClick={() => setMoreOpen((open) => !open)}
+              aria-expanded={moreOpen}
+              aria-haspopup="true"
+              className="relative flex items-center gap-1 px-1 py-2"
             >
-              {isDark ? (
-                <Sun className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-              ) : (
-                <Moon className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              <span
+                className="text-sm transition-colors duration-150"
+                style={{
+                  color: moreIsActive ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: moreIsActive ? 500 : 400,
+                }}
+              >
+                More
+              </span>
+              <ChevronDown
+                className="w-3.5 h-3.5 transition-transform duration-200"
+                style={{
+                  color: "var(--text-muted)",
+                  transform: moreOpen ? "rotate(180deg)" : "none",
+                }}
+                aria-hidden="true"
+              />
+              {moreIsActive && (
+                <motion.span
+                  layoutId="nav-underline"
+                  className="absolute left-0 right-0 -bottom-0.5 h-[2px] rounded-full"
+                  style={NAV_UNDERLINE_STYLE}
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  aria-hidden="true"
+                />
               )}
             </button>
-          )}
+
+            {moreOpen ? (
+              <div
+                className="absolute right-0 top-full mt-2 min-w-[13rem] rounded-xl p-1.5 z-50"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border-default)",
+                  boxShadow: "0 20px 40px -12px rgba(0,0,0,0.35)",
+                }}
+              >
+                {MORE.map((link) => {
+                  const isActive = activeSection === link.id;
+                  return (
+                    <button
+                      key={link.id}
+                      type="button"
+                      onClick={() => handleNavClick(link.id)}
+                      aria-current={isActive ? "true" : undefined}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors duration-150 hover:bg-[var(--bg-hover)]"
+                      style={{
+                        color: isActive ? "var(--accent-light)" : "var(--text-secondary)",
+                        fontWeight: isActive ? 500 : 400,
+                      }}
+                    >
+                      {link.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          {renderLink(PRIMARY[4], "nav-underline")}
+
+          {mounted && themeButton("md")}
         </div>
 
-        {/* Mobile Nav */}
-        <div className="md:hidden flex items-center gap-3">
-          {MOBILE_NAV_LINKS.map((link) => {
-            const isActive = activeSection === link.id;
-            return (
-              <button
-                key={link.id}
-                onClick={() => handleNavClick(link.id)}
-                className="relative px-1 py-2"
-              >
-                <span
-                  className="text-sm transition-colors duration-150"
-                  style={{
-                    color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    fontWeight: isActive ? 500 : 400,
-                  }}
-                >
-                  {link.label}
-                </span>
-
-                {/* Mobile shared layout underline - indigo/violet/pink gradient */}
-                {isActive && (
-                  <motion.span
-                    layoutId="mobile-nav-underline"
-                    className="absolute left-0 right-0 -bottom-0.5 h-[2px] rounded-full"
-                    style={NAV_UNDERLINE_STYLE}
-                    transition={{
-                      type: "spring",
-                      stiffness: 400,
-                      damping: 30,
-                    }}
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            );
-          })}
-
-          {/* Theme Toggle Button - Mobile */}
-          {mounted && (
-            <button
-              onClick={toggleTheme}
-              aria-label="Toggle theme"
-              className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200"
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-default)',
-              }}
-            >
-              {isDark ? (
-                <Sun className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-              ) : (
-                <Moon className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-              )}
-            </button>
-          )}
+        {/* Below lg: two anchors plus a full sheet, so nothing is unreachable. */}
+        <div className="lg:hidden flex items-center gap-3 sm:gap-4">
+          {COMPACT.map((link) => renderLink(link, "compact-nav-underline"))}
+          {mounted && themeButton("sm")}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-nav"
+            aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+            className="inline-flex items-center justify-center h-8 w-8 rounded-lg"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            {menuOpen ? (
+              <X className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Menu className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
         </div>
       </nav>
+
+      {menuOpen ? (
+        <div
+          id="mobile-nav"
+          className="lg:hidden px-4 sm:px-6 pb-4"
+          style={{ borderTop: "1px solid var(--border-default)" }}
+        >
+          <ul className="max-w-6xl mx-auto grid grid-cols-2 gap-1.5 pt-3">
+            {SECTIONS.map((link) => {
+              const isActive = activeSection === link.id;
+              return (
+                <li key={link.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleNavClick(link.id)}
+                    aria-current={isActive ? "true" : undefined}
+                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors duration-150"
+                    style={{
+                      background: isActive ? "var(--accent-dim)" : "transparent",
+                      color: isActive ? "var(--accent-lighter)" : "var(--text-secondary)",
+                      fontWeight: isActive ? 500 : 400,
+                    }}
+                  >
+                    {link.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
     </header>
   );
 }

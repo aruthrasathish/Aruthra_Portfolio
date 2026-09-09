@@ -1,287 +1,345 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useTheme } from "next-themes";
 import * as THREE from "three";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { useMouseParallax } from "@/hooks/useMouseParallax";
+import { usePointerTracking, getPointerPosition } from "@/hooks/usePointer";
 import { useMounted } from "@/hooks/useMounted";
+import { useIsSmallScreen } from "@/hooks/useMediaQuery";
 
-// Configuration for easy tuning
-const CONFIG = {
-  nodeCount: 45,
+const DESKTOP = {
+  nodeCount: 46,
   connectionDistance: 2.8,
-  nodeSize: 0.04,
-  lineOpacity: 0.15,
-  pulseSpeed: 0.003,
-  orbitSpeed: 0.0002,
-  driftSpeed: 0.001,
-  parallaxIntensity: 0.015,
+  pulseCount: 5,
+  pointerRadius: 2.1,
 };
 
-// Generate initial node positions in a 3D space
-function generateNodes(count) {
+const MOBILE = {
+  nodeCount: 22,
+  connectionDistance: 3.4,
+  pulseCount: 0,
+  pointerRadius: 0,
+};
+
+const NODE_SIZE = 0.045;
+const DRIFT_AMPLITUDE = 0.13;
+const DRIFT_SPEED = 0.22;
+const ORBIT_SPEED = 0.014;
+
+function buildGraph(config) {
   const nodes = [];
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < config.nodeCount; i += 1) {
     nodes.push({
-      position: new THREE.Vector3(
-        (Math.random() - 0.5) * 8,
-        (Math.random() - 0.5) * 6,
+      base: new THREE.Vector3(
+        (Math.random() - 0.5) * 8.4,
+        (Math.random() - 0.5) * 6.2,
         (Math.random() - 0.5) * 4
       ),
-      basePosition: new THREE.Vector3(
-        (Math.random() - 0.5) * 8,
-        (Math.random() - 0.5) * 6,
-        (Math.random() - 0.5) * 4
-      ),
-      pulsePhase: Math.random() * Math.PI * 2,
-      driftOffset: Math.random() * Math.PI * 2,
-      isActive: Math.random() > 0.7, // 30% chance to be an "active" node
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.7 + Math.random() * 0.6,
+      hub: Math.random() > 0.72,
     });
   }
-  return nodes;
-}
 
-// Generate connections between nearby nodes
-function generateConnections(nodes, maxDistance) {
   const connections = [];
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      const distance = nodes[i].basePosition.distanceTo(nodes[j].basePosition);
-      if (distance < maxDistance) {
+  for (let i = 0; i < nodes.length; i += 1) {
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const distance = nodes[i].base.distanceTo(nodes[j].base);
+      if (distance < config.connectionDistance) {
         connections.push({
           from: i,
           to: j,
-          distance,
+          phase: Math.random() * Math.PI * 2,
+          speed: 0.25 + Math.random() * 0.35,
         });
       }
     }
   }
-  return connections;
+
+  return { nodes, connections };
 }
 
-// Network Graph Component (3D scene contents)
-function NetworkGraph({ isDark, reducedMotion, mousePosition }) {
+// Packets live in a ref and mutate every frame, so they are built outside the
+// render path rather than in a memo.
+function buildPulses(count, linkCount) {
+  if (!count || !linkCount) return [];
+  return Array.from({ length: count }, () => ({
+    link: Math.floor(Math.random() * linkCount),
+    progress: Math.random(),
+    speed: 0.28 + Math.random() * 0.22,
+    wait: Math.random() * 3,
+  }));
+}
+
+function NetworkGraph({ isDark, reducedMotion, config, scrollRef }) {
   const groupRef = useRef();
   const nodesRef = useRef();
   const linesRef = useRef();
-  const time = useRef(0);
+  const packetMeshRef = useRef();
+  const clock = useRef(0);
 
-  // Generate nodes and connections once
-  const { nodes, connections } = useMemo(() => {
-    const nodeData = generateNodes(CONFIG.nodeCount);
-    const connectionData = generateConnections(nodeData, CONFIG.connectionDistance);
-    return { nodes: nodeData, connections: connectionData };
-  }, []);
+  const { nodes, connections } = useMemo(() => buildGraph(config), [config]);
 
-  // Theme-based colors
-  const colors = useMemo(() => {
-    if (isDark) {
-      return {
-        nodeBase: new THREE.Color("#6366f1"),
-        nodeActive: new THREE.Color("#a855f7"),
-        lineStart: new THREE.Color("#1e3a5f"),
-        lineEnd: new THREE.Color("#38bdf8"),
-      };
-    }
-    return {
-      nodeBase: new THREE.Color("#818cf8"),
-      nodeActive: new THREE.Color("#c084fc"),
-      lineStart: new THREE.Color("#c7d2fe"),
-      lineEnd: new THREE.Color("#a5b4fc"),
-    };
-  }, [isDark]);
-
-  // Create geometry for nodes (instanced for performance)
-  const nodeGeometry = useMemo(() => new THREE.SphereGeometry(CONFIG.nodeSize, 8, 8), []);
-  const nodeMaterial = useMemo(
+  const palette = useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
-        color: colors.nodeBase,
-        transparent: true,
-        opacity: isDark ? 0.6 : 0.5,
-      }),
-    [colors.nodeBase, isDark]
-  );
-
-  // Create line geometry
-  const lineGeometry = useMemo(() => {
-    const positions = [];
-    const colorArray = [];
-
-    connections.forEach((conn) => {
-      const from = nodes[conn.from].basePosition;
-      const to = nodes[conn.to].basePosition;
-
-      positions.push(from.x, from.y, from.z);
-      positions.push(to.x, to.y, to.z);
-
-      // Gradient along the line
-      const opacity = 1 - conn.distance / CONFIG.connectionDistance;
-      colorArray.push(
-        colors.lineStart.r,
-        colors.lineStart.g,
-        colors.lineStart.b,
-        colors.lineEnd.r,
-        colors.lineEnd.g,
-        colors.lineEnd.b
-      );
-    });
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    return geometry;
-  }, [nodes, connections, colors]);
-
-  const lineMaterial = useMemo(
-    () =>
-      new THREE.LineBasicMaterial({
-        color: isDark ? "#4a6fa5" : "#a5b4fc",
-        transparent: true,
-        opacity: isDark ? CONFIG.lineOpacity : CONFIG.lineOpacity * 0.7,
-        linewidth: 1,
-      }),
+      isDark
+        ? {
+            node: new THREE.Color("#6366f1"),
+            hub: new THREE.Color("#a855f7"),
+            line: new THREE.Color("#4a6fa5"),
+            pulse: new THREE.Color("#7dd3fc"),
+            lineOpacity: 0.22,
+            nodeOpacity: 0.74,
+          }
+        : {
+            node: new THREE.Color("#818cf8"),
+            hub: new THREE.Color("#c084fc"),
+            line: new THREE.Color("#a5b4fc"),
+            pulse: new THREE.Color("#6366f1"),
+            lineOpacity: 0.24,
+            nodeOpacity: 0.5,
+          },
     [isDark]
   );
 
-  // Animation loop
+  const nodeGeometry = useMemo(
+    () => new THREE.SphereGeometry(NODE_SIZE, 8, 8),
+    []
+  );
+  const pulseGeometry = useMemo(
+    () => new THREE.SphereGeometry(NODE_SIZE * 1.35, 8, 8),
+    []
+  );
+
+  // Line geometry carries per-vertex colour so individual links can breathe
+  // without allocating a material per connection.
+  const lineGeometry = useMemo(() => {
+    const positions = new Float32Array(connections.length * 6);
+    const colors = new Float32Array(connections.length * 6);
+    connections.forEach((connection, index) => {
+      const from = nodes[connection.from].base;
+      const to = nodes[connection.to].base;
+      positions.set([from.x, from.y, from.z, to.x, to.y, to.z], index * 6);
+    });
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    return geometry;
+  }, [nodes, connections]);
+
+  // Data packets that travel one link at a time, then hop to another link.
+  const pulseCount = connections.length ? config.pulseCount : 0;
+  const pulsesRef = useRef([]);
+
+  const scratch = useMemo(
+    () => ({
+      dummy: new THREE.Object3D(),
+      color: new THREE.Color(),
+      live: new THREE.Vector3(),
+      from: new THREE.Vector3(),
+      to: new THREE.Vector3(),
+    }),
+    []
+  );
+
+  const livePositions = useMemo(
+    () => nodes.map(() => new THREE.Vector3()),
+    [nodes]
+  );
+
   useFrame((state, delta) => {
-    if (reducedMotion) return;
+    const { dummy, color, live, from, to } = scratch;
+    const meshes = nodesRef.current;
+    if (!meshes) return;
 
-    time.current += delta;
+    const t = reducedMotion ? 0 : (clock.current += Math.min(delta, 0.05));
 
-    // Subtle rotation of entire group
-    if (groupRef.current) {
-      groupRef.current.rotation.y += CONFIG.orbitSpeed;
-      groupRef.current.rotation.x = Math.sin(time.current * 0.1) * 0.02;
-
-      // Apply mouse parallax (inverted for depth effect)
-      groupRef.current.position.x = -mousePosition.x * 2;
-      groupRef.current.position.y = -mousePosition.y * 2;
+    // Pointer -> world space on the z=0 plane.
+    let pointerX = 0;
+    let pointerY = 0;
+    if (config.pointerRadius > 0 && !reducedMotion) {
+      const pointer = getPointerPosition();
+      pointerX = pointer.x * (state.viewport.width / 2);
+      pointerY = -pointer.y * (state.viewport.height / 2);
     }
 
-    // Update line positions based on node drift
-    if (linesRef.current) {
-      const positions = linesRef.current.geometry.attributes.position.array;
-      let idx = 0;
+    if (groupRef.current) {
+      groupRef.current.rotation.y = t * ORBIT_SPEED;
+      groupRef.current.rotation.x = Math.sin(t * 0.08) * 0.02;
+      // Depth: the field drifts slightly against the page scroll.
+      groupRef.current.position.y = scrollRef.current * 0.9;
+    }
 
-      connections.forEach((conn) => {
-        const fromNode = nodes[conn.from];
-        const toNode = nodes[conn.to];
+    // Nodes: drift + pointer proximity, in one pass, one draw call.
+    for (let i = 0; i < nodes.length; i += 1) {
+      const node = nodes[i];
+      const wobble = t * DRIFT_SPEED * node.speed + node.phase;
+      live.set(
+        node.base.x + Math.sin(wobble) * DRIFT_AMPLITUDE,
+        node.base.y + Math.cos(wobble * 0.8) * DRIFT_AMPLITUDE * 0.7,
+        node.base.z
+      );
+      livePositions[i].copy(live);
 
-        // Calculate drifted positions
-        const fromDrift = Math.sin(time.current * CONFIG.driftSpeed + fromNode.driftOffset) * 0.1;
-        const toDrift = Math.sin(time.current * CONFIG.driftSpeed + toNode.driftOffset) * 0.1;
+      let proximity = 0;
+      if (config.pointerRadius > 0) {
+        const dx = live.x - pointerX;
+        const dy = live.y - pointerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < config.pointerRadius) {
+          proximity = 1 - distance / config.pointerRadius;
+        }
+      }
 
-        positions[idx++] = fromNode.basePosition.x + fromDrift;
-        positions[idx++] = fromNode.basePosition.y + Math.cos(time.current * CONFIG.driftSpeed + fromNode.driftOffset) * 0.05;
-        positions[idx++] = fromNode.basePosition.z;
+      const breathe = node.hub ? 0.5 + 0.5 * Math.sin(t * 1.1 + node.phase) : 0;
+      const scale = 1 + breathe * 0.35 + proximity * 0.9;
 
-        positions[idx++] = toNode.basePosition.x + toDrift;
-        positions[idx++] = toNode.basePosition.y + Math.cos(time.current * CONFIG.driftSpeed + toNode.driftOffset) * 0.05;
-        positions[idx++] = toNode.basePosition.z;
-      });
+      dummy.position.copy(live);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+      meshes.setMatrixAt(i, dummy.matrix);
 
-      linesRef.current.geometry.attributes.position.needsUpdate = true;
+      color
+        .copy(node.hub ? palette.hub : palette.node)
+        .multiplyScalar(0.75 + breathe * 0.25 + proximity * 0.6);
+      meshes.setColorAt(i, color);
+    }
+    meshes.instanceMatrix.needsUpdate = true;
+    if (meshes.instanceColor) meshes.instanceColor.needsUpdate = true;
+
+    // Lines follow the drifted node positions and vary in opacity via colour.
+    const lines = linesRef.current;
+    if (lines) {
+      const position = lines.geometry.attributes.position.array;
+      const colorAttr = lines.geometry.attributes.color.array;
+      for (let i = 0; i < connections.length; i += 1) {
+        const connection = connections[i];
+        const a = livePositions[connection.from];
+        const b = livePositions[connection.to];
+        const offset = i * 6;
+
+        position[offset] = a.x;
+        position[offset + 1] = a.y;
+        position[offset + 2] = a.z;
+        position[offset + 3] = b.x;
+        position[offset + 4] = b.y;
+        position[offset + 5] = b.z;
+
+        const wave =
+          0.55 + 0.45 * Math.sin(t * connection.speed + connection.phase);
+        colorAttr[offset] = palette.line.r * wave;
+        colorAttr[offset + 1] = palette.line.g * wave;
+        colorAttr[offset + 2] = palette.line.b * wave;
+        colorAttr[offset + 3] = palette.line.r * wave;
+        colorAttr[offset + 4] = palette.line.g * wave;
+        colorAttr[offset + 5] = palette.line.b * wave;
+      }
+      lines.geometry.attributes.position.needsUpdate = true;
+      lines.geometry.attributes.color.needsUpdate = true;
+    }
+
+    // Packets in flight.
+    const packets = packetMeshRef.current;
+    if (packets && pulseCount) {
+      if (pulsesRef.current.length !== pulseCount) {
+        pulsesRef.current = buildPulses(pulseCount, connections.length);
+      }
+      const pulses = pulsesRef.current;
+      for (let i = 0; i < pulses.length; i += 1) {
+        const pulse = pulses[i];
+        if (pulse.wait > 0) {
+          pulse.wait -= delta;
+          dummy.scale.setScalar(0);
+          dummy.position.set(0, 0, 0);
+          dummy.updateMatrix();
+          packets.setMatrixAt(i, dummy.matrix);
+          continue;
+        }
+
+        pulse.progress += delta * pulse.speed;
+        if (pulse.progress >= 1) {
+          pulse.progress = 0;
+          pulse.link = Math.floor(Math.random() * connections.length);
+          pulse.speed = 0.28 + Math.random() * 0.22;
+          pulse.wait = 1.2 + Math.random() * 3.5;
+        }
+
+        const connection = connections[pulse.link];
+        from.copy(livePositions[connection.from]);
+        to.copy(livePositions[connection.to]);
+        dummy.position.lerpVectors(from, to, pulse.progress);
+        // Fade in and out at the ends of the hop.
+        const envelope = Math.sin(pulse.progress * Math.PI);
+        dummy.scale.setScalar(envelope);
+        dummy.updateMatrix();
+        packets.setMatrixAt(i, dummy.matrix);
+      }
+      packets.instanceMatrix.needsUpdate = true;
     }
   });
 
   return (
     <group ref={groupRef}>
-      {/* Connection lines */}
-      <lineSegments ref={linesRef} geometry={lineGeometry} material={lineMaterial} />
-
-      {/* Nodes */}
-      {nodes.map((node, i) => (
-        <NodePoint
-          key={i}
-          node={node}
-          geometry={nodeGeometry}
-          baseColor={colors.nodeBase}
-          activeColor={colors.nodeActive}
-          isDark={isDark}
-          reducedMotion={reducedMotion}
+      <lineSegments ref={linesRef} geometry={lineGeometry}>
+        <lineBasicMaterial
+          vertexColors
+          transparent
+          opacity={palette.lineOpacity}
         />
-      ))}
+      </lineSegments>
+
+      <instancedMesh
+        ref={nodesRef}
+        args={[nodeGeometry, undefined, nodes.length]}
+      >
+        <meshBasicMaterial transparent opacity={palette.nodeOpacity} />
+      </instancedMesh>
+
+      {pulseCount > 0 && (
+        <instancedMesh
+          ref={packetMeshRef}
+          args={[pulseGeometry, undefined, pulseCount]}
+        >
+          <meshBasicMaterial
+            color={palette.pulse}
+            transparent
+            opacity={isDark ? 0.85 : 0.6}
+          />
+        </instancedMesh>
+      )}
     </group>
   );
 }
 
-// Individual node with pulse animation
-function NodePoint({ node, geometry, baseColor, activeColor, isDark, reducedMotion }) {
-  const meshRef = useRef();
-  const time = useRef(0);
-
-  useFrame((state, delta) => {
-    if (!meshRef.current || reducedMotion) return;
-
-    time.current += delta;
-
-    // Gentle drift animation
-    const drift = Math.sin(time.current * CONFIG.driftSpeed + node.driftOffset) * 0.1;
-    meshRef.current.position.x = node.basePosition.x + drift;
-    meshRef.current.position.y =
-      node.basePosition.y + Math.cos(time.current * CONFIG.driftSpeed + node.driftOffset) * 0.05;
-    meshRef.current.position.z = node.basePosition.z;
-
-    // Pulse effect for active nodes
-    if (node.isActive) {
-      const pulse = Math.sin(time.current * CONFIG.pulseSpeed * 100 + node.pulsePhase) * 0.5 + 0.5;
-      meshRef.current.scale.setScalar(1 + pulse * 0.5);
-      meshRef.current.material.opacity = (isDark ? 0.4 : 0.3) + pulse * 0.3;
-      meshRef.current.material.color.lerpColors(baseColor, activeColor, pulse);
-    }
-  });
-
-  return (
-    <mesh
-      ref={meshRef}
-      geometry={geometry}
-      position={[node.basePosition.x, node.basePosition.y, node.basePosition.z]}
-    >
-      <meshBasicMaterial
-        color={node.isActive ? activeColor : baseColor}
-        transparent
-        opacity={isDark ? 0.5 : 0.4}
-      />
-    </mesh>
-  );
-}
-
-// Gradient Overlays Component
 function GradientOverlays({ isDark }) {
   return (
     <>
-      {/* Top-left glow (teal/violet in dark, soft purple in light) */}
       <div
         className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full pointer-events-none"
         style={{
           background: isDark
-            ? "radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(56,189,248,0.08) 40%, transparent 70%)"
+            ? "radial-gradient(circle, rgba(99,102,241,0.19) 0%, rgba(56,189,248,0.10) 40%, transparent 70%)"
             : "radial-gradient(circle, rgba(129,140,248,0.12) 0%, rgba(196,181,253,0.08) 40%, transparent 70%)",
           filter: "blur(60px)",
         }}
       />
-
-      {/* Center-right glow */}
       <div
         className="absolute top-1/3 -right-20 w-[500px] h-[500px] rounded-full pointer-events-none"
         style={{
           background: isDark
-            ? "radial-gradient(circle, rgba(168,85,247,0.12) 0%, rgba(99,102,241,0.06) 50%, transparent 70%)"
+            ? "radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(99,102,241,0.08) 50%, transparent 70%)"
             : "radial-gradient(circle, rgba(192,132,252,0.1) 0%, rgba(165,180,252,0.05) 50%, transparent 70%)",
           filter: "blur(80px)",
         }}
       />
-
-      {/* Bottom gradient */}
       <div
         className="absolute bottom-0 left-1/4 w-[800px] h-[400px] rounded-full pointer-events-none"
         style={{
           background: isDark
-            ? "radial-gradient(ellipse, rgba(56,189,248,0.08) 0%, rgba(99,102,241,0.04) 50%, transparent 70%)"
-            : "radial-gradient(ellipse, rgba(165,180,252,0.08) 0%, rgba(196,181,253,0.04) 50%, transparent 70%)",
+            ? "radial-gradient(ellipse, rgba(56,189,248,0.10) 0%, rgba(99,102,241,0.05) 50%, transparent 70%)"
+            : "radial-gradient(ellipse, rgba(165,180,252,0.08) 0%, rgba(99,102,241,0.04) 50%, transparent 70%)",
           filter: "blur(100px)",
         }}
       />
@@ -289,48 +347,89 @@ function GradientOverlays({ isDark }) {
   );
 }
 
-// Main AnimatedBackground Component
 export default function AnimatedBackground() {
   const { resolvedTheme } = useTheme();
   const mounted = useMounted();
   const prefersReducedMotion = usePrefersReducedMotion();
-  const mousePosition = useMouseParallax(CONFIG.parallaxIntensity);
+  const isSmallScreen = useIsSmallScreen();
+  const scrimRef = useRef(null);
+  const scrollRef = useRef(0);
 
-  // Default to dark theme during SSR to avoid flash
   const isDark = mounted ? resolvedTheme === "dark" : true;
+  const config = isSmallScreen ? MOBILE : DESKTOP;
+
+  usePointerTracking(!isSmallScreen && !prefersReducedMotion);
+
+  // The network is the loudest behind the hero and calms down over content.
+  // Written straight to the DOM inside one coalesced rAF - no re-render.
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const viewport = window.innerHeight || 1;
+        const progress = Math.min(
+          Math.max((window.scrollY - viewport * 0.45) / (viewport * 0.75), 0),
+          1
+        );
+        scrollRef.current = progress * 0.55;
+        if (scrimRef.current) {
+          scrimRef.current.style.opacity = (progress * 0.42).toFixed(3);
+        }
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-      {/* Base background color */}
       <div
         className="absolute inset-0 transition-colors duration-500"
         style={{
           background: isDark
-            ? "linear-gradient(180deg, #020617 0%, #0c0c0f 50%, #030712 100%)"
+            ? "linear-gradient(180deg, #0a1020 0%, #101018 50%, #0a0f1e 100%)"
             : "linear-gradient(180deg, #f5f7ff 0%, #F4F5FB 50%, #eef1f8 100%)",
         }}
       />
 
-      {/* Gradient overlays */}
       <GradientOverlays isDark={isDark} />
 
-      {/* 3D Canvas */}
       {mounted && (
         <Canvas
           camera={{ position: [0, 0, 6], fov: 60 }}
-          dpr={[1, 1.5]} // Limit pixel ratio for performance
-          gl={{ antialias: true, alpha: true }}
+          dpr={isSmallScreen ? 1 : [1, 1.5]}
+          frameloop={prefersReducedMotion ? "demand" : "always"}
+          gl={{ antialias: !isSmallScreen, alpha: true, powerPreference: "low-power" }}
           style={{ position: "absolute", inset: 0 }}
         >
           <NetworkGraph
             isDark={isDark}
             reducedMotion={prefersReducedMotion}
-            mousePosition={mousePosition}
+            config={config}
+            scrollRef={scrollRef}
           />
         </Canvas>
       )}
 
-      {/* Subtle noise texture overlay for premium feel */}
+      {/* Readability scrim: fades the network back once content starts. */}
+      <div
+        ref={scrimRef}
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          opacity: 0,
+          background: isDark
+            ? "linear-gradient(180deg, rgba(10,16,32,0.22) 0%, rgba(10,16,32,0.60) 45%, rgba(10,16,32,0.66) 100%)"
+            : "linear-gradient(180deg, rgba(244,245,251,0.4) 0%, rgba(244,245,251,0.88) 45%, rgba(244,245,251,0.92) 100%)",
+          transition: "background-color 300ms ease",
+        }}
+      />
+
       <div
         className="absolute inset-0 opacity-[0.02] pointer-events-none"
         style={{

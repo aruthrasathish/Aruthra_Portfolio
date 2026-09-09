@@ -1,63 +1,56 @@
 "use client";
-import { projects } from "@/lib/data";
+
+import { ArrowUpRight } from "lucide-react";
+import Reveal, { SectionHeading } from "@/components/ui/Reveal";
 import ProjectCard from "./ProjectCard";
-import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
+import { GitHubIcon } from "@/components/ui/Icons";
+import { projects, hero } from "@/lib/data";
 
+/**
+ * Projects.
+ *
+ * One sequential grid rather than the old featured/supporting split: three
+ * columns on desktop, two on tablet, one on mobile. Every project gets the
+ * same card, so all seven are visible in roughly the space the four featured
+ * cards used to take, and the eye moves down a column instead of switching
+ * between two card sizes.
+ *
+ * Featured projects still lead - `projects` is ordered, and the featured ones
+ * come first in the data.
+ */
 export default function Projects() {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-
   return (
-    <section id="projects" ref={ref} className="section">
+    <section id="projects" className="section">
       <div className="container-main">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.5 }}
-          className="mb-12"
-        >
-          <p className="section-label">Projects</p>
-          <h2 className="section-title">Featured Work</h2>
-          <p className="section-subtitle max-w-2xl">
-            Production systems with measurable impact.
-          </p>
-        </motion.div>
+        <SectionHeading
+          label="Projects"
+          title="Featured Projects"
+        />
 
-        {/* Projects */}
-        <div className="space-y-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {projects.map((project, index) => (
-            <motion.div
+            <Reveal
               key={project.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
+              delay={(index % 3) * 0.06}
+              className="h-full"
             >
               <ProjectCard project={project} />
-            </motion.div>
+            </Reveal>
           ))}
         </div>
 
-        {/* GitHub Link */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.5, delay: projects.length * 0.1 + 0.1 }}
-          className="mt-10 text-center"
-        >
+        <Reveal delay={0.1} className="mt-10 text-center">
           <a
-            href="https://github.com/Aruthrasathishkumar"
+            href={hero.github}
             target="_blank"
             rel="noopener noreferrer"
             className="btn-secondary inline-flex"
           >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
-            </svg>
-            View All Projects
+            <GitHubIcon className="w-5 h-5" />
+            View all repositories
+            <ArrowUpRight className="w-4 h-4 cta-arrow" aria-hidden="true" />
           </a>
-        </motion.div>
+        </Reveal>
       </div>
     </section>
   );
