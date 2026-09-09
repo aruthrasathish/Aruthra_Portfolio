@@ -1,9 +1,9 @@
-# Aruthra Portfolio
+# Aruthra's Portfolio
 
 A personal portfolio website built with [Next.js](https://nextjs.org), showcasing
 my projects, skills, and experience.
 
-The site itself is the recruiting artifact — there is deliberately no resume
+The site itself is the recruiting artifact - there is deliberately no resume
 download anywhere in it.
 
 ## Tech Stack
@@ -40,7 +40,7 @@ npm run build
 ## Environment
 
 Copy `.env.example` to `.env.local` and fill it in. Every variable is optional
-for local development — the contact form detects an unconfigured mailer and
+for local development - the contact form detects an unconfigured mailer and
 returns a clear "not wired up yet" message instead of pretending a message was
 sent.
 
@@ -60,7 +60,7 @@ Content order is set in `app/page.js`, and the navbar, scroll spy and mobile
 menu all read from the same list in `components/Navbar.js`:
 
 1. Hero / Overview
-2. About — engineering story and three identity pillars
+2. About - engineering story and three identity pillars
 3. Education
 4. Experience
 5. Skills
@@ -86,7 +86,7 @@ filenames and export sizes in its own `README.md`.
 | `public/images/projects/`       | A "Screenshot pending" plate, sized to the same aspect ratio  |
 | `public/images/awards/`         | A neutral icon tile in place of the photo                     |
 | `public/images/logos/`          | A monogram tile built from the organisation's initials        |
-| `public/images/certifications/` | **No fallback** — badge files must be present                 |
+| `public/images/certifications/` | **No fallback** - badge files must be present                 |
 
 ## Avatar
 
@@ -118,7 +118,7 @@ See `public/avatar/README.md` for the full pipeline and per-file measurements.
 This project is deployed using [AWS Amplify](https://aws.amazon.com/amplify/).
 Amplify provides continuous deployment from the GitHub repository with automatic
 builds on every push to `master`. Set the environment variables above in the
-Amplify console — they are not read from `.env.local` in a hosted build.
+Amplify console - they are not read from `.env.local` in a hosted build.
 
 ## Project Structure
 
@@ -137,13 +137,6 @@ public/avatar/           # Hero character assets
 public/images/           # Asset slots, each with its own README
 scripts/                 # Avatar asset pipeline (Python)
 ```
-
-## Author
-
-**Aruthra Sathish Kumar** — sole author and contributor.
-
-- GitHub: [@aruthrasathish](https://github.com/aruthrasathish)
-- LinkedIn: [aruthrasathish](https://www.linkedin.com/in/aruthrasathish)
 
 ## Learn More
 
